@@ -5,7 +5,7 @@ public protocol Annoucment: Sendable {
     var annoucmentImpact: AnnoucmentImpact { get }
 }
 
-public enum AnnoucmentImpact {
+public enum AnnoucmentImpact: Sendable {
     case high
     case medium
     case low

@@ -2,51 +2,37 @@ import XCTest
 @testable import TradingStrategy
 
 final class PhaseTests: XCTestCase {
-    func testPhaseGroupingWithNoise() {
-        let phaseTypes: [PhaseType] = [.time, .time, .time, .time, .price, .price, .time, .time, .time, .price, .time]
-        let expectedGroups = [
-            Phase(type: .time, range: 0...10) // Last 'time' series including one 'price' as noise
+    func testConvertToPhasesCreatesUpAndDownTrends() {
+        // Prices above MA then below MA should yield uptrend then downtrend.
+        let ma = Array(repeating: 10.0, count: 6)
+        let candles: [Klines] = [
+            Candle(open: 10, close: 11, high: 11, low: 9, volume: 100), // up
+            Candle(open: 11, close: 12, high: 12, low: 10, volume: 100), // up
+            Candle(open: 12, close: 9, high: 12, low: 9, volume: 100),   // down start
+            Candle(open: 9, close: 8.5, high: 9.5, low: 8, volume: 100), // down
+            Candle(open: 8.5, close: 8.2, high: 9, low: 8, volume: 100), // down
+            Candle(open: 8.2, close: 8, high: 8.5, low: 7.8, volume: 100) // down
         ]
         
-        let actualGroups = phaseTypes.group(ignoringNoiseUpTo: 3)
-        
-        XCTAssertEqual(actualGroups, expectedGroups, "The actual groups should match the expected groups, with noise being ignored up to a threshold of 3.")
+        let phases = candles.convertToPhases(minPhaseLength: 1, longTermMA: ma)
+        XCTAssertEqual(phases.count, 2)
+        XCTAssertEqual(phases[0].type, .uptrend)
+        XCTAssertEqual(phases[1].type, .downtrend)
     }
     
-    func testPhaseGroupingWithoutNoise() {
-        let phaseTypes: [PhaseType] = [.time, .time, .price, .price, .time, .time]
-        let expectedGroups = [
-            Phase(type: .time, range: 0...1),
-            Phase(type: .price, range: 2...3),
-            Phase(type: .time, range: 4...5)
+    func testDetectPhasesUsingMovingAverageDetectsSideways() {
+        let sma = [10.0, 10.0, 10.0, 10.0, 10.0]
+        let scale = Scale(x: 0..<5, y: 9..<11, candlesPerScreen: 5)
+        let candles: [Klines] = [
+            Candle(open: 10, close: 10.02, high: 10.05, low: 9.95, volume: 100), // near MA -> sideways
+            Candle(open: 10.01, close: 10.0, high: 10.04, low: 9.96, volume: 100), // sideways
+            Candle(open: 10.0, close: 10.5, high: 10.6, low: 9.9, volume: 100), // up
+            Candle(open: 10.5, close: 10.6, high: 10.8, low: 10.4, volume: 100), // up
+            Candle(open: 10.6, close: 10.1, high: 10.7, low: 10.0, volume: 100) // down
         ]
         
-        let actualGroups = phaseTypes.group(ignoringNoiseUpTo: 0) // Setting noise threshold to 0
-        
-        XCTAssertEqual(actualGroups, expectedGroups, "The actual groups should match the expected groups, with no noise being ignored.")
-    }
-    
-    func testPhaseGroupingWithNoiseAtEnd() {
-        let phaseTypes: [PhaseType] = [.time, .time, .time, .price, .time]
-        let expectedGroups = [
-            Phase(type: .time, range: 0...4)  // All as 'time' with 'price' being considered as noise
-        ]
-        
-        let actualGroups = phaseTypes.group(ignoringNoiseUpTo: 1)
-        
-        XCTAssertEqual(actualGroups, expectedGroups, "The actual groups should match the expected groups, including noise at the end.")
-    }
-    
-    func testPhaseGroupingWithoutNoiseAndPositiveTreshold() {
-        let phaseTypes: [PhaseType] = [.time, .time, .time, .time, .price, .price, .price, .price, .time, .time, .time, .time]
-        let expectedGroups = [
-            Phase(type: .time, range: 0...3),
-            Phase(type: .price, range: 4...7),
-            Phase(type: .time, range: 8...11)
-        ]
-        
-        let actualGroups = phaseTypes.group(ignoringNoiseUpTo: 3) // Setting noise threshold to 3
-        
-        XCTAssertEqual(actualGroups, expectedGroups, "The actual groups should match the expected groups, with no noise being ignored.")
+        let phases = candles.detectPhasesUsingMovingAverage(period: 1, shortTermMA: sma, scale: scale)
+        XCTAssertFalse(phases.isEmpty)
+        XCTAssertTrue(phases.contains { $0.type == .sideways })
     }
 }

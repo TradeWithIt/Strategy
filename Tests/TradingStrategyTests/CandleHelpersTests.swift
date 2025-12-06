@@ -171,50 +171,33 @@ final class CandleHelpersTests: XCTestCase {
     }
     
     func testBarAgregation() {
-        let data: [Klines] = [
-            Candle(open: 1.0, close: 1.3, high: 1.5, low: 0.9, volume: 100),
-            Candle(open: 1.2, close: 1.4, high: 1.6, low: 1.1, volume: 110),
-            Candle(open: 1.3, close: 1.2, high: 1.5, low: 1.0, volume: 120),
-            Candle(open: 1.1, close: 1.3, high: 1.4, low: 0.8, volume: 130),
-            Candle(open: 1.2, close: 1.5, high: 1.6, low: 1.1, volume: 140),
-            
-            Candle(open: 1.4, close: 1.6, high: 1.7, low: 1.3, volume: 150),
-            Candle(open: 1.5, close: 1.4, high: 1.8, low: 1.2, volume: 160),
-            Candle(open: 1.3, close: 1.5, high: 1.6, low: 1.2, volume: 170),
-            Candle(open: 1.4, close: 1.3, high: 1.7, low: 1.1, volume: 180),
-            Candle(open: 1.2, close: 1.4, high: 1.5, low: 1.0, volume: 190),
-            
-            Candle(open: 1.3, close: 1.5, high: 1.6, low: 1.2, volume: 200),
-            Candle(open: 1.5, close: 1.7, high: 1.8, low: 1.4, volume: 210),
-            Candle(open: 1.6, close: 1.5, high: 1.9, low: 1.3, volume: 220),
-            Candle(open: 1.4, close: 1.6, high: 1.7, low: 1.2, volume: 230),
-            Candle(open: 1.5, close: 1.3, high: 1.8, low: 1.1, volume: 240),
-            
-            Candle(open: 1.3, close: 1.5, high: 1.6, low: 1.2, volume: 250),
-            Candle(open: 1.4, close: 1.6, high: 1.7, low: 1.3, volume: 260),
-            Candle(open: 1.6, close: 1.4, high: 1.8, low: 1.2, volume: 270),
-            Candle(open: 1.3, close: 1.5, high: 1.6, low: 1.1, volume: 280),
-            Candle(open: 1.5, close: 1.7, high: 1.9, low: 1.4, volume: 290)
+        // Use deterministic timestamps to ensure grouping is predictable.
+        let base: TimeInterval = 0
+        let oneSecond: TimeInterval = 1
+        let candles: [Klines] = [
+            Candle(open: 1, close: 2, high: 2.5, low: 0.5, volume: 10, time: base + oneSecond * 0),
+            Candle(open: 2, close: 3, high: 3.5, low: 1.5, volume: 10, time: base + oneSecond * 1),
+            Candle(open: 3, close: 4, high: 4.5, low: 2.5, volume: 10, time: base + oneSecond * 2),
+            Candle(open: 4, close: 5, high: 5.5, low: 3.5, volume: 10, time: base + oneSecond * 3),
+            Candle(open: 5, close: 6, high: 6.5, low: 4.5, volume: 10, time: base + oneSecond * 4),
+            Candle(open: 6, close: 7, high: 7.5, low: 5.5, volume: 10, time: base + oneSecond * 5)
         ]
         
-        let expectedAggregatedCandles: [Candle] = [
-            Candle(open: 1.0, close: 1.5, high: 1.6, low: 0.8, volume: 210),
-            Candle(open: 1.4, close: 1.4, high: 1.8, low: 1.0, volume: 250),
-            Candle(open: 1.3, close: 1.3, high: 1.9, low: 1.1, volume: 290),
-            Candle(open: 1.3, close: 1.7, high: 1.9, low: 1.1, volume: 330),
-        ]
-
+        // Target interval 2 seconds => buckets [0-1], [2-3], [4-5]
+        let aggregated = candles.aggregateBars(to: 2)
+        XCTAssertEqual(aggregated.count, 3)
         
-        let aggregated = data.aggregateBars(by: 5)
-        XCTAssertEqual(aggregated.count, 4)
-        
-        for (aggIndex, aggregatedCandle) in aggregated.enumerated() {
-            let expectedCandle = expectedAggregatedCandles[aggIndex]
-            XCTAssertEqual(aggregatedCandle.timeOpen, expectedCandle.timeOpen, accuracy: 0.01)
-            XCTAssertEqual(aggregatedCandle.priceOpen, expectedCandle.priceOpen)
-            XCTAssertEqual(aggregatedCandle.priceHigh, expectedCandle.priceHigh)
-            XCTAssertEqual(aggregatedCandle.priceLow, expectedCandle.priceLow)
-            XCTAssertEqual(aggregatedCandle.priceClose, expectedCandle.priceClose)
+        func assertCandle(_ candle: Klines, open: Double, high: Double, low: Double, close: Double, start: TimeInterval) {
+            XCTAssertEqual(candle.priceOpen, open)
+            XCTAssertEqual(candle.priceHigh, high)
+            XCTAssertEqual(candle.priceLow, low)
+            XCTAssertEqual(candle.priceClose, close)
+            XCTAssertEqual(candle.timeOpen, start, accuracy: 0.0001)
+            XCTAssertEqual(candle.interval, 2, accuracy: 0.0001)
         }
+        
+        assertCandle(aggregated[0], open: 1, high: 3.5, low: 0.5, close: 3, start: 0)
+        assertCandle(aggregated[1], open: 3, high: 5.5, low: 2.5, close: 5, start: 2)
+        assertCandle(aggregated[2], open: 5, high: 7.5, low: 4.5, close: 7, start: 4)
     }
 }
